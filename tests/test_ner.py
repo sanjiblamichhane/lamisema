@@ -1,6 +1,5 @@
 """Tests for rule-based Nepali NER."""
 
-import pytest
 
 from lamisema.nlp import ner
 

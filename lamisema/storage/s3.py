@@ -9,12 +9,10 @@ Environment Variables:
   - LAMI_S3_BUCKET: lamisema-vault
 """
 
-import io
 import json
 import logging
 import os
 from typing import Optional
-
 from urllib.parse import quote, unquote
 
 from lamisema.models import ExtractionResult
@@ -31,7 +29,7 @@ class S3Storage(StorageBackend):
     def __init__(self):
         try:
             import boto3
-            from botocore.exceptions import ClientError
+            from botocore.exceptions import ClientError  # noqa: F401
         except ImportError as exc:
             raise RuntimeError(
                 "boto3 is required for S3 storage. Run: pip install boto3"

@@ -1,6 +1,5 @@
 """Tests for Bikram Sambat → Gregorian date normalization."""
 
-import pytest
 
 from lamisema.nlp.dates import bs_year_to_ad, normalize_bs_date
 

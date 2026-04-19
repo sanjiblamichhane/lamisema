@@ -7,7 +7,6 @@ Swap backends without changing pipeline logic:
 """
 
 from abc import ABC, abstractmethod
-from typing import List
 
 
 class OCRBackend(ABC):

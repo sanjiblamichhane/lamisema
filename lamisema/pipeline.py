@@ -23,7 +23,7 @@ Usage (English):
 
 import io
 import logging
-from typing import Dict, List, Optional
+from typing import List, Optional
 
 from lamisema.models import EncodingType, Entity, ExtractionResult, PageResult
 from lamisema.nlp.base import NLPBackend
@@ -85,12 +85,14 @@ class LamiSema:
         """Pick TesseractBackend if available, then EasyOCRBackend, then None."""
         try:
             import pytesseract  # noqa: F401
+
             from lamisema.ocr.tesseract import TesseractBackend
             return TesseractBackend()
         except ImportError:
             pass
         try:
             import easyocr  # noqa: F401
+
             from lamisema.ocr.easyocr import EasyOCRBackend
             return EasyOCRBackend()
         except ImportError:

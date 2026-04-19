@@ -7,7 +7,6 @@ Useful for persistent storage without S3/Minio overhead.
 
 import json
 import logging
-import os
 from pathlib import Path
 from typing import Optional
 
@@ -37,13 +36,13 @@ class LocalStorage(StorageBackend):
     def store_pdf(self, doc_id: str, filename: str, pdf_bytes: bytes) -> None:
         path = self.pdf_dir / f"{doc_id}.pdf"
         meta_path = self.pdf_dir / f"{doc_id}.meta"
-        
+
         with open(path, "wb") as f:
             f.write(pdf_bytes)
-        
+
         with open(meta_path, "w", encoding="utf-8") as f:
             f.write(filename)
-            
+
         logger.debug(f"Stored PDF to disk: {path}")
 
     def get_pdf(self, doc_id: str) -> Optional[bytes]:

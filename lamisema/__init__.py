@@ -25,7 +25,7 @@ from lamisema.models import (
     Entity,
     ExtractionResult,
     FontInfo,
-    NepaliEntity,   # backward-compat alias for Entity
+    NepaliEntity,  # backward-compat alias for Entity
     PageResult,
     PreflightResult,
 )

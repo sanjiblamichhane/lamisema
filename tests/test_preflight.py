@@ -1,7 +1,8 @@
 """Tests for PDFPreflightService encoding detection."""
 
+from unittest.mock import MagicMock
+
 import pytest
-from unittest.mock import MagicMock, patch
 
 from lamisema.models import EncodingType, FontInfo
 from lamisema.preflight import PDFPreflightService

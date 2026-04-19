@@ -84,10 +84,7 @@ class PDFPreflightService:
                     seen[clean_name] = FontInfo(
                         name=clean_name,
                         encoding=encoding,
-                        is_legacy_nepali=any(
-                            legacy.lower() in clean_name.lower()
-                            for legacy in LEGACY_NEPALI_FONTS
-                        ),
+                        is_legacy_nepali=clean_name.lower() in {f.lower() for f in LEGACY_NEPALI_FONTS},
                     )
         return list(seen.values())
 

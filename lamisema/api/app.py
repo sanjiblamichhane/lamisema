@@ -75,25 +75,25 @@ app = FastAPI(
 async def health():
     """System health check — hardware info, library availability, store stats."""
     try:
-        import fitz
+        import fitz  # noqa: F401
         pymupdf_ok = True
     except ImportError:
         pymupdf_ok = False
 
     try:
-        import pdfplumber
+        import pdfplumber  # noqa: F401
         pdfplumber_ok = True
     except ImportError:
         pdfplumber_ok = False
 
     try:
-        import pytesseract
+        import pytesseract  # noqa: F401
         tesseract_ok = True
     except ImportError:
         tesseract_ok = False
 
     try:
-        import easyocr
+        import easyocr  # noqa: F401
         easyocr_ok = True
     except ImportError:
         easyocr_ok = False
