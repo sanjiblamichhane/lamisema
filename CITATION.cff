@@ -1,0 +1,40 @@
+cff-version: 1.2.0
+message: "If you use LamiSema in research, please cite it using this metadata."
+type: software
+title: "LamiSema: Encoding-Aware Nepali PDF Extraction Engine"
+version: 1.0.0
+date-released: "2026-04-18"
+license: MIT
+repository-code: "https://github.com/sanjiblamichhane/lamisema"
+url: "https://github.com/sanjiblamichhane/lamisema"
+abstract: >
+  LamiSema is the world's leading structured information extraction system optimized
+  for Nepali-language PDFs. It goes beyond character recovery to extract
+  structured meaning: tables, sections, and 20+ named entity types covering
+  Nepal's administrative, legal, economic, and general-purpose government
+  document schemas. The pipeline solves the silent data corruption caused by
+  legacy Nepali fonts (Preeti, Kantipur, Sagarmatha) by detecting PDF encoding
+  type before extraction and routing each document to the correct strategy.
+  The symbolic NLP layer provides rule-based named entity recognition for
+  Bikram Sambat dates, NPR currency, organizations, ward codes, districts,
+  provinces, land parcel IDs, court references, gazette references, and
+  government positions — with no ML model required. Domain-specific extraction
+  schemas cover budget documents, land records, gazette notices, court orders,
+  economics reports, and general-purpose government documents. Cross-document
+  intelligence enables deduplication, version tracking, and entity co-reference
+  across document corpora. Designed as the preprocessing layer for the Onto
+  swarm intelligence ontology platform.
+authors:
+  - family-names: Lamichhane
+    given-names: Sanjib
+
+keywords:
+  - nepali
+  - pdf-extraction
+  - devanagari
+  - bikram-sambat
+  - named-entity-recognition
+  - legacy-fonts
+  - symbolic-nlp
+  - under-resourced-languages
+  - nepal

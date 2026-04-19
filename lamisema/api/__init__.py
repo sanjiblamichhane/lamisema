@@ -1,0 +1,1 @@
+"""LamiSema FastAPI application."""

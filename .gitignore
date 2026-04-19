@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.eggs/
+
+.claude/
+
+# Virtual environments
+.venv/
+venv/
+*-venv/
+env/
+
+# Test / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# IDE
+.vscode/
+.idea/
+
+# macOS
+.DS_Store
+
+# Benchmark dataset — PDFs are large and contain PII; never commit them
+benchmark/dataset/*.pdf
+benchmark/ground_truth/*.txt
+
+# Local development / Research
+_local/
+uploads/
+*.pdf
+
+# Python build artifacts
+dist/
+build/
+*.egg-info/

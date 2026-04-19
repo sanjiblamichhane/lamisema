@@ -1,0 +1,85 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "lamisema"
+version = "1.0.0"
+description = "Structured Information Extraction for Nepali and multilingual PDFs"
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [{ name = "Sanjib Lamichhane", email = "lamich2ane@gmail.com" }]
+keywords = ["nepali", "pdf", "ocr", "nlp", "devanagari", "bikram-sambat", "nepal"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Text Processing :: Linguistic",
+    "Natural Language :: Nepali",
+    "Typing :: Typed",
+]
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    "pydantic>=2.0.0",
+    "Pillow>=10.0.0",
+    "pdfplumber>=0.11.0",
+    "PyMuPDF>=1.24.0",
+    "python-multipart>=0.0.9",
+    "pytesseract>=0.3.10",
+]
+
+[project.optional-dependencies]
+# pip install lamisema[tesseract] (deprecated alias, now core)
+tesseract = []
+# pip install lamisema[easyocr]
+easyocr = ["easyocr>=1.7.0", "opencv-python-headless"]
+# pip install lamisema[s3]
+s3 = ["boto3>=1.34.0"]
+# pip install lamisema[all]
+all = ["lamisema[tesseract,easyocr,s3]"]
+# pip install lamisema[dev]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "httpx>=0.27.0",
+    "ruff>=0.4.0",
+    "lamisema[tesseract]",
+]
+
+[project.urls]
+Homepage      = "https://lamisema.readthedocs.io"
+Repository    = "https://github.com/sanjiblamichhane/lamisema"
+Issues        = "https://github.com/sanjiblamichhane/lamisema/issues"
+Changelog     = "https://github.com/sanjiblamichhane/lamisema/blob/master/CHANGELOG.md"
+Documentation = "https://lamisema.readthedocs.io"
+
+[project.scripts]
+# After install: `lamisema serve` starts the API server
+lamisema = "lamisema.api.app:serve"
+
+[tool.hatch.build.targets.wheel]
+packages = ["lamisema"]
+
+[tool.hatch.build.targets.wheel.shared-data]
+# Include the py.typed marker so type checkers recognise the package (PEP 561)
+"lamisema/py.typed" = "lamisema/py.typed"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = ["E501"]  # line length — handled by formatter

@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  # LamiSema API Server
+  api:
+    build: .
+    ports:
+      - "8001:9001"
+    environment:
+      - LAMI_STORAGE_TYPE=s3
+      - LAMI_S3_ENDPOINT=http://minio:9000
+      - LAMI_S3_ACCESS_KEY=minioadmin
+      - LAMI_S3_SECRET_KEY=minioadmin
+      - LAMI_S3_BUCKET=lamisema-vault
+    depends_on:
+      - minio
+
+  # Minio (S3-compatible Object Storage)
+  minio:
+    image: minio/minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+
+volumes:
+  minio_data:
