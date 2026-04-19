@@ -72,7 +72,7 @@ app = FastAPI(
         "silent data corruption. Pluggable NLPBackend supports Nepali (default), English, and any "
         "language via a simple interface. Rule-based NER for 20+ entity types. No ML model required."
     ),
-    version="1.0.0",
+    version="1.1.0",
 )
 
 

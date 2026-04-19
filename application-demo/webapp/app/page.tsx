@@ -392,10 +392,19 @@ export default function Home() {
       }
     };
 
-    es.onerror = () => {
-      setError('Connection to extraction stream lost. Please try again.');
-      setPhase('preflighted');
+    es.onerror = async () => {
       es.close();
+      // Stream endpoint unavailable — fall back to the blocking POST extract
+      setStreamProgress(null);
+      try {
+        const res = await fetch(`/api/extract/${upload!.doc_id}`, { method: 'POST' });
+        if (!res.ok) throw new Error(await extractError(res));
+        setExtraction(await res.json());
+        setPhase('done');
+      } catch (e) {
+        setError(String(e));
+        setPhase('preflighted');
+      }
     };
   };
 

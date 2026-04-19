@@ -6,6 +6,21 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.1.0] — 2026-04-19
+
+### Added
+
+- `LamiSema.extract_iter()` — generator that yields SSE event dicts per page for streaming extraction
+- `GET /extract/{doc_id}/stream` — Server-Sent Events endpoint; streams `preflight`, `page`, `done`, and `error` events as each page is processed
+- Catch-all FastAPI exception handler so all unhandled 500s return JSON `{detail: ...}` instead of plain text
+
+### Fixed
+
+- Legacy font detection false positive: `NotoSansDevanagari` was incorrectly flagged as legacy because `"Devanagari"` is a substring of the font name. Switched from substring to exact match.
+- All ruff lint errors (I001, F401, W293) across `__init__.py`, `api/app.py`, `ocr/`, `pipeline.py`, `storage/`
+
+---
+
 ## [1.0.0] — 2026-04-18
 
 ### Added
