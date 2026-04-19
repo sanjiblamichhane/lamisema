@@ -1,145 +1,128 @@
-# LamiSema — Application Demo
+# LamiSema — Demo App
 
-A full-stack demo of the [lamisema](https://pypi.org/project/lamisema/) package.
-Upload Nepali PDFs, run pre-flight encoding analysis, and extract structured entities.
+A full-stack demo of [lamisema](https://pypi.org/project/lamisema/): upload a Nepali PDF, detect its encoding, and extract structured entities — all in a browser.
 
 ```
 application-demo/
-├── api/        Dockerfile that installs lamisema from PyPI
-├── webapp/     Next.js 15 frontend
-├── docker-compose.local.yaml   local dev stack (MinIO console exposed)
-├── docker-compose.prod.yaml    production stack (health checks, restart policies)
-└── .env.example
+├── webapp/                     Next.js 15 frontend
+├── docker-compose.local.yaml   Local dev stack
+├── docker-compose.prod.yaml    Production stack
+└── .env.example                Environment variable template
 ```
 
 ## Architecture
 
-```
-Browser → webapp :3000 → (Next.js rewrites /api/*) → api :9001 → minio :9000
+```mermaid
+flowchart LR
+    Browser -->|localhost:3000| Webapp[Next.js\nwebapp]
+    Webapp -->|/api/* rewrites| API[LamiSema API\nport 9001]
+    API --> MinIO[MinIO\nport 9000]
 ```
 
-The webapp proxies all `/api/*` requests to the API server — the browser never talks
-to the API directly, so no CORS configuration is needed.
+The webapp proxies all `/api/*` requests to the API — the browser never calls the API directly, so no CORS setup is needed.
 
 ---
 
-## Local development
+## Local setup
 
 ### Prerequisites
 
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (or Docker + Docker Compose v2)
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (includes Docker Compose)
 
-### 1. Create your env file
+### Steps
 
 ```bash
+# 1. Copy the env file
 cp .env.example .env
-```
 
-The defaults in `.env.example` work out of the box for local dev.
-
-### 2. Build and start
-
-```bash
+# 2. Build and start all services
 docker compose -f docker-compose.local.yaml up --build
 ```
 
-| Service       | URL                          | Notes                     |
-|---------------|------------------------------|---------------------------|
-| Frontend      | http://localhost:3000        | Next.js SPA               |
-| API           | http://localhost:8001        | FastAPI + Swagger UI /docs|
-| MinIO console | http://localhost:9001        | user: minioadmin / minioadmin |
+That's it. All three services start together.
 
-### 3. Rebuild a single service
+| Service | URL | Notes |
+|---|---|---|
+| Frontend | http://localhost:3000 | Next.js SPA |
+| API + Swagger | http://localhost:8001/docs | FastAPI interactive docs |
+| MinIO console | http://localhost:9001 | Login: `minioadmin` / `minioadmin` |
 
-```bash
-docker compose -f docker-compose.local.yaml up --build api
-```
-
-### 4. View logs
+### Common commands
 
 ```bash
-docker compose -f docker-compose.local.yaml logs -f api
-```
+# View logs
+docker compose -f docker-compose.local.yaml logs -f
 
-### 5. Stop everything
+# Rebuild one service (e.g. after editing the webapp)
+docker compose -f docker-compose.local.yaml up --build webapp
 
-```bash
+# Stop everything (keep MinIO data)
 docker compose -f docker-compose.local.yaml down
-```
 
-Add `-v` to also delete the MinIO volume: `down -v`
+# Stop and wipe MinIO data
+docker compose -f docker-compose.local.yaml down -v
+```
 
 ---
 
-## Production deployment
+## Production setup
 
-### Prerequisites
-
-- A Linux server with Docker + Docker Compose v2
-- A domain pointing to your server (optional, for HTTPS)
-
-### 1. Create and configure `.env`
+### 1. Configure `.env`
 
 ```bash
 cp .env.example .env
 ```
 
-Update the following for production:
+Change these values before deploying:
 
-| Variable              | What to set                                      |
-|-----------------------|--------------------------------------------------|
-| `MINIO_ROOT_USER`     | Strong username (not `minioadmin`)               |
-| `MINIO_ROOT_PASSWORD` | Strong password (min 12 chars)                   |
-| `LAMI_S3_ACCESS_KEY`  | Match `MINIO_ROOT_USER`                          |
-| `LAMI_S3_SECRET_KEY`  | Match `MINIO_ROOT_PASSWORD`                      |
-| `LAMI_S3_ENDPOINT`    | `http://minio:9000` (keep for self-hosted MinIO) |
+| Variable | What to set |
+|---|---|
+| `MINIO_ROOT_USER` | Strong username (not `minioadmin`) |
+| `MINIO_ROOT_PASSWORD` | Strong password (min 12 chars) |
+| `LAMI_S3_ACCESS_KEY` | Same as `MINIO_ROOT_USER` |
+| `LAMI_S3_SECRET_KEY` | Same as `MINIO_ROOT_PASSWORD` |
 
-To use AWS S3 instead of MinIO, set:
-```
-LAMI_S3_ENDPOINT=         # leave empty
-LAMI_S3_ACCESS_KEY=<your AWS access key>
-LAMI_S3_SECRET_KEY=<your AWS secret key>
-LAMI_S3_BUCKET=<your bucket name>
-```
-Then remove the `minio` service from `docker-compose.prod.yaml`.
-
-### 2. Build and start
+### 2. Start
 
 ```bash
 docker compose -f docker-compose.prod.yaml up --build -d
 ```
 
-Services start in dependency order and wait for health checks before proceeding.
-The webapp is exposed on port `3000`. Put a reverse proxy (nginx, Caddy) in front
-of it to handle TLS termination.
+Services start in dependency order with health checks. The webapp is on port `3000` — put Nginx or Caddy in front for HTTPS.
 
-### 3. Updating to a new lamisema release
+### 3. Upgrade the API to a new lamisema release
 
-The API Dockerfile installs the latest `lamisema` from PyPI on every build.
-To upgrade:
+The API installs `lamisema` from PyPI on build. To upgrade:
 
 ```bash
 docker compose -f docker-compose.prod.yaml build --no-cache api
 docker compose -f docker-compose.prod.yaml up -d api
 ```
 
-### 4. Check service health
+### Using AWS S3 instead of MinIO
 
-```bash
-docker compose -f docker-compose.prod.yaml ps
+Update `.env`:
+
 ```
+LAMI_S3_ENDPOINT=
+LAMI_S3_ACCESS_KEY=<your-aws-access-key>
+LAMI_S3_SECRET_KEY=<your-aws-secret-key>
+LAMI_S3_BUCKET=<your-bucket-name>
+```
+
+Then remove the `minio` service from `docker-compose.prod.yaml`.
 
 ---
 
-## Environment variables reference
+## Environment variables
 
-| Variable              | Default                  | Description                                      |
-|-----------------------|--------------------------|--------------------------------------------------|
-| `LAMI_STORAGE_TYPE`   | `s3`                     | `memory`, `disk`, or `s3`                        |
-| `LAMI_S3_ENDPOINT`    | `http://minio:9000`      | S3-compatible endpoint URL                       |
-| `LAMI_S3_ACCESS_KEY`  | `minioadmin`             | S3 access key                                    |
-| `LAMI_S3_SECRET_KEY`  | `minioadmin`             | S3 secret key                                    |
-| `LAMI_S3_BUCKET`      | `lamisema-vault`         | Bucket name for PDF and result storage           |
-| `MINIO_ROOT_USER`     | `minioadmin`             | MinIO admin username                             |
-| `MINIO_ROOT_PASSWORD` | `minioadmin`             | MinIO admin password                             |
-| `API_URL`             | `http://api:9001`        | Internal URL the webapp uses to proxy API calls  |
+| Variable | Default | Description |
+|---|---|---|
+| `LAMI_STORAGE_TYPE` | `s3` | `memory`, `disk`, or `s3` |
+| `LAMI_S3_ENDPOINT` | `http://minio:9000` | S3-compatible endpoint |
+| `LAMI_S3_ACCESS_KEY` | `minioadmin` | S3 access key |
+| `LAMI_S3_SECRET_KEY` | `minioadmin` | S3 secret key |
+| `LAMI_S3_BUCKET` | `lamisema-vault` | Storage bucket name |
+| `MINIO_ROOT_USER` | `minioadmin` | MinIO admin username |
+| `MINIO_ROOT_PASSWORD` | `minioadmin` | MinIO admin password |
+| `API_URL` | `http://api:9001` | Internal API URL used by the webapp |
