@@ -182,20 +182,73 @@ function StreamProgressPanel({ progress }: { progress: StreamProgress }) {
   );
 }
 
+function AccordionSection({ title, badge, defaultOpen = true, children }: {
+  title: string;
+  badge?: React.ReactNode;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between px-6 py-4 hover:bg-gray-50 transition-colors text-left"
+      >
+        <div className="flex items-center gap-3">
+          <span className="font-semibold text-gray-900">{title}</span>
+          {badge}
+        </div>
+        <span className="text-gray-400 text-sm">{open ? '▲' : '▼'}</span>
+      </button>
+      {open && <div className="px-6 pb-6 border-t border-gray-100">{children}</div>}
+    </div>
+  );
+}
+
+function CopyButton({ text, label }: { text: string; label?: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  };
+  return (
+    <button
+      onClick={copy}
+      className="text-xs text-gray-400 hover:text-gray-700 transition-colors flex items-center gap-1"
+      title={`Copy ${label ?? 'to clipboard'}`}
+    >
+      {copied ? (
+        <span className="text-green-600 font-medium">Copied!</span>
+      ) : (
+        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+            d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+        </svg>
+      )}
+    </button>
+  );
+}
+
 function ExtractionPanel({ result }: { result: ExtractionResult }) {
   const [expandedPage, setExpandedPage] = useState<number | null>(null);
   const allEntities = result.pages.flatMap(p => p.entities);
   const grouped = groupEntities(allEntities);
 
+  const allEntitiesText = Object.entries(grouped)
+    .map(([type, ents]) => `${type}:\n${ents.map(e => e.normalized ? `${e.text} (${e.normalized})` : e.text).join('\n')}`)
+    .join('\n\n');
+
   return (
-    <div className="space-y-5">
-      {/* Summary cards */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="font-semibold text-gray-900">Extraction Results</h2>
-          <EncodingBadge type={result.encoding_type} />
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+    <div className="space-y-3">
+      {/* Summary */}
+      <AccordionSection
+        title="Extraction Results"
+        badge={<EncodingBadge type={result.encoding_type} />}
+      >
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
           {[
             { label: 'Pages', value: result.total_pages },
             { label: 'Confidence', value: `${(result.overall_confidence * 100).toFixed(0)}%` },
@@ -211,45 +264,59 @@ function ExtractionPanel({ result }: { result: ExtractionResult }) {
         {result.warnings.length > 0 && (
           <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-lg p-3">
             <p className="text-xs font-semibold text-yellow-800 mb-1">Warnings</p>
-            {result.warnings.map((w, i) => (
-              <p key={i} className="text-xs text-yellow-700">{w}</p>
-            ))}
+            {result.warnings.map((w, i) => <p key={i} className="text-xs text-yellow-700">{w}</p>)}
           </div>
         )}
-      </div>
+      </AccordionSection>
 
-      {/* Entities grouped by type */}
+      {/* Entities */}
       {Object.keys(grouped).length > 0 && (
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
-          <h3 className="font-semibold text-gray-900 mb-4">Extracted Entities</h3>
-          <div className="space-y-5">
-            {Object.entries(grouped).map(([type, entities]) => (
-              <div key={type}>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-                  {type} <span className="font-normal normal-case">({entities.length})</span>
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {entities.map((e, i) => (
-                    <span
-                      key={i}
-                      title={e.normalized ?? e.text}
-                      className={`inline-flex flex-col px-2.5 py-1.5 rounded text-xs leading-tight ${ENTITY_COLORS[type] ?? 'bg-gray-100 text-gray-700'}`}
-                    >
-                      <span className="font-medium">{e.text}</span>
-                      {e.normalized && <span className="opacity-60 text-[10px] mt-0.5">{e.normalized}</span>}
-                    </span>
-                  ))}
+        <AccordionSection
+          title="Extracted Entities"
+          badge={
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-400">{allEntities.length} total</span>
+              <CopyButton text={allEntitiesText} label="all entities" />
+            </div>
+          }
+        >
+          <div className="space-y-5 mt-4">
+            {Object.entries(grouped).map(([type, entities]) => {
+              const copyText = entities.map(e => e.normalized ? `${e.text} (${e.normalized})` : e.text).join('\n');
+              return (
+                <div key={type}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                      {type} <span className="font-normal normal-case">({entities.length})</span>
+                    </p>
+                    <CopyButton text={copyText} label={type} />
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {entities.map((e, i) => (
+                      <span
+                        key={i}
+                        title={e.normalized ?? e.text}
+                        className={`inline-flex flex-col px-2.5 py-1.5 rounded text-xs leading-tight cursor-pointer select-all ${ENTITY_COLORS[type] ?? 'bg-gray-100 text-gray-700'}`}
+                      >
+                        <span className="font-medium">{e.text}</span>
+                        {e.normalized && <span className="opacity-60 text-[10px] mt-0.5">{e.normalized}</span>}
+                      </span>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
-        </div>
+        </AccordionSection>
       )}
 
-      {/* Page breakdown */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6">
-        <h3 className="font-semibold text-gray-900 mb-4">Pages</h3>
-        <div className="space-y-2">
+      {/* Pages */}
+      <AccordionSection
+        title="Pages"
+        badge={<span className="text-xs text-gray-400">{result.total_pages} pages</span>}
+        defaultOpen={false}
+      >
+        <div className="space-y-2 mt-4">
           {result.pages.map(page => (
             <div key={page.page_number} className="border border-gray-200 rounded-lg overflow-hidden">
               <button
@@ -258,28 +325,27 @@ function ExtractionPanel({ result }: { result: ExtractionResult }) {
               >
                 <div className="flex items-center gap-2.5 flex-wrap">
                   <span className="text-sm font-medium text-gray-900">Page {page.page_number}</span>
-                  <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded font-mono">
-                    {page.extraction_method}
-                  </span>
+                  <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded font-mono">{page.extraction_method}</span>
                   {page.entities.length > 0 && (
-                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
-                      {page.entities.length} entities
-                    </span>
+                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">{page.entities.length} entities</span>
                   )}
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  <span className="text-xs text-gray-400">
-                    {(page.confidence * 100).toFixed(0)}% confidence
-                  </span>
+                  <span className="text-xs text-gray-400">{(page.confidence * 100).toFixed(0)}% confidence</span>
                   <span className="text-gray-400">{expandedPage === page.page_number ? '▲' : '▼'}</span>
                 </div>
               </button>
               {expandedPage === page.page_number && (
                 <div className="px-4 pb-4 border-t border-gray-100">
                   {page.raw_text ? (
-                    <pre className="mt-3 bg-gray-50 rounded-lg p-3 text-xs text-gray-700 whitespace-pre-wrap font-mono max-h-52 overflow-y-auto leading-relaxed">
-                      {page.raw_text}
-                    </pre>
+                    <div className="relative mt-3">
+                      <pre className="bg-gray-50 rounded-lg p-3 text-xs text-gray-700 whitespace-pre-wrap font-mono max-h-52 overflow-y-auto leading-relaxed">
+                        {page.raw_text}
+                      </pre>
+                      <div className="absolute top-2 right-2">
+                        <CopyButton text={page.raw_text} label="page text" />
+                      </div>
+                    </div>
                   ) : (
                     <p className="mt-3 text-xs text-gray-400 italic">No text extracted from this page.</p>
                   )}
@@ -288,7 +354,7 @@ function ExtractionPanel({ result }: { result: ExtractionResult }) {
             </div>
           ))}
         </div>
-      </div>
+      </AccordionSection>
     </div>
   );
 }
