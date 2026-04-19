@@ -11,13 +11,16 @@ Run with:
 Interactive docs: http://localhost:9001/docs
 """
 
+import asyncio
+import concurrent.futures
+import json
 import logging
 import os
 import uuid
 
 import uvicorn
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 
 from lamisema.models import (
     DateNormalizationRequest,
@@ -59,6 +62,7 @@ _preflight_svc = PDFPreflightService()
 _nlp_backend = NepaliNLPBackend()
 _store = _get_storage_backend()
 _pipeline = LamiSema(preflight=_preflight_svc, nlp_backend=_nlp_backend, storage=_store)
+_thread_pool = concurrent.futures.ThreadPoolExecutor(max_workers=4)
 
 app = FastAPI(
     title="LamiSema — Structured Information Extraction for Nepali Documents",
@@ -198,6 +202,60 @@ async def extract(doc_id: str):
     _store.store_result(doc_id, result)
     logger.info(f"[{doc_id}] Extraction complete — confidence={result.overall_confidence}, pages={result.total_pages}")
     return result
+
+
+@app.get("/extract/{doc_id}/stream", tags=["Analysis"])
+async def extract_stream(doc_id: str):
+    """
+    Streaming extraction via Server-Sent Events (SSE).
+
+    Yields one event per page as it completes so the client can show live progress.
+    Connect with EventSource('/extract/{doc_id}/stream').
+
+    Event shapes:
+      {"type": "preflight", "encoding_type": "...", "total_pages": N, "has_text_layer": bool}
+      {"type": "page",      "data": <PageResult>}
+      {"type": "done",      "result": <ExtractionResult>}
+      {"type": "error",     "detail": "..."}
+    """
+    pdf_bytes = _store.get_pdf(doc_id)
+    if pdf_bytes is None:
+        raise HTTPException(status_code=404, detail=f"Document {doc_id} not found.")
+
+    filename = _store.get_filename(doc_id) or "unknown.pdf"
+    loop = asyncio.get_event_loop()
+    queue: asyncio.Queue = asyncio.Queue()
+
+    def run() -> None:
+        try:
+            for event in _pipeline.extract_iter(pdf_bytes, filename, doc_id):
+                loop.call_soon_threadsafe(queue.put_nowait, event)
+        except Exception as exc:
+            loop.call_soon_threadsafe(queue.put_nowait, {"type": "error", "detail": str(exc)})
+        finally:
+            loop.call_soon_threadsafe(queue.put_nowait, None)
+
+    _thread_pool.submit(run)
+
+    async def generate():
+        from lamisema.models import ExtractionResult as ER
+        while True:
+            event = await queue.get()
+            if event is None:
+                break
+            yield f"data: {json.dumps(event)}\n\n"
+            if event.get("type") == "done":
+                try:
+                    _store.store_result(doc_id, ER.model_validate(event["result"]))
+                    logger.info(f"[{doc_id}] Stream extraction complete")
+                except Exception as exc:
+                    logger.warning(f"[{doc_id}] Could not store streamed result: {exc}")
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @app.get("/result/{doc_id}", tags=["Results"], response_model=ExtractionResult)

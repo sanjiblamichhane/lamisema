@@ -56,6 +56,12 @@ interface ExtractionResult {
   warnings: string[];
 }
 
+interface StreamProgress {
+  totalPages: number;
+  encodingType: string;
+  completedPages: PageResult[];
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const ENCODING_LABELS: Record<string, { label: string; cls: string }> = {
@@ -118,6 +124,63 @@ function Spinner() {
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
+
+function StreamProgressPanel({ progress }: { progress: StreamProgress }) {
+  const done = progress.completedPages.length;
+  const total = progress.totalPages;
+  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+  const totalEntities = progress.completedPages.reduce((s, p) => s + p.entities.length, 0);
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="font-semibold text-gray-900">Extracting…</h2>
+        <EncodingBadge type={progress.encodingType} />
+      </div>
+
+      {/* Progress bar */}
+      <div>
+        <div className="flex justify-between text-xs text-gray-500 mb-1.5">
+          <span>{done} of {total} pages</span>
+          <span>{pct}%</span>
+        </div>
+        <div className="w-full bg-gray-100 rounded-full h-2">
+          <div
+            className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+      </div>
+
+      {/* Running totals */}
+      <div className="flex gap-4 text-sm">
+        <span className="text-gray-500">
+          Entities found: <span className="font-semibold text-gray-800">{totalEntities}</span>
+        </span>
+      </div>
+
+      {/* Per-page rows */}
+      {progress.completedPages.length > 0 && (
+        <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
+          {progress.completedPages.map(p => (
+            <div key={p.page_number} className="flex items-center justify-between text-xs bg-gray-50 rounded-lg px-3 py-2">
+              <div className="flex items-center gap-2">
+                <span className="font-medium text-gray-700">Page {p.page_number}</span>
+                <span className="bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded font-mono">{p.extraction_method}</span>
+                {p.entities.length > 0 && (
+                  <span className="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">{p.entities.length} entities</span>
+                )}
+              </div>
+              <span className={`font-medium ${p.confidence >= 0.7 ? 'text-green-600' : p.confidence >= 0.4 ? 'text-yellow-600' : 'text-red-500'}`}>
+                {(p.confidence * 100).toFixed(0)}%
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function ExtractionPanel({ result }: { result: ExtractionResult }) {
   const [expandedPage, setExpandedPage] = useState<number | null>(null);
@@ -238,17 +301,22 @@ export default function Home() {
   const [file, setFile] = useState<File | null>(null);
   const [upload, setUpload] = useState<UploadResult | null>(null);
   const [preflight, setPreflight] = useState<PreflightResult | null>(null);
+  const [streamProgress, setStreamProgress] = useState<StreamProgress | null>(null);
   const [extraction, setExtraction] = useState<ExtractionResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const esRef = useRef<EventSource | null>(null);
 
   const loading = ['uploading', 'preflighting', 'extracting'].includes(phase);
 
   const reset = () => {
+    esRef.current?.close();
+    esRef.current = null;
     setPhase('idle');
     setFile(null);
     setUpload(null);
     setPreflight(null);
+    setStreamProgress(null);
     setExtraction(null);
     setError(null);
   };
@@ -297,19 +365,38 @@ export default function Home() {
     }
   };
 
-  const handleExtract = async () => {
+  const handleExtract = () => {
     if (!upload) return;
     setPhase('extracting');
     setError(null);
-    try {
-      const res = await fetch(`/api/extract/${upload.doc_id}`, { method: 'POST' });
-      if (!res.ok) throw new Error(await extractError(res));
-      setExtraction(await res.json());
-      setPhase('done');
-    } catch (e) {
-      setError(String(e));
+    setStreamProgress(null);
+
+    const es = new EventSource(`/api/extract/${upload.doc_id}/stream`);
+    esRef.current = es;
+
+    es.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+
+      if (data.type === 'preflight') {
+        setStreamProgress({ totalPages: data.total_pages, encodingType: data.encoding_type, completedPages: [] });
+      } else if (data.type === 'page') {
+        setStreamProgress(prev => prev ? { ...prev, completedPages: [...prev.completedPages, data.data] } : prev);
+      } else if (data.type === 'done') {
+        setExtraction(data.result);
+        setPhase('done');
+        es.close();
+      } else if (data.type === 'error') {
+        setError(data.detail ?? 'Extraction failed');
+        setPhase('preflighted');
+        es.close();
+      }
+    };
+
+    es.onerror = () => {
+      setError('Connection to extraction stream lost. Please try again.');
       setPhase('preflighted');
-    }
+      es.close();
+    };
   };
 
   return (
@@ -457,21 +544,24 @@ export default function Home() {
               <p className="text-xs text-blue-700 leading-relaxed">{preflight.recommended_strategy}</p>
             </div>
 
-            {phase !== 'done' && (
+            {phase !== 'done' && phase !== 'extracting' && (
               <button
                 onClick={handleExtract}
                 disabled={loading}
                 className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white rounded-lg text-sm font-medium transition-colors"
               >
-                {phase === 'extracting'
-                  ? <><Spinner />Extracting… (OCR PDFs may take up to 2 min)</>
-                  : 'Run Full Extraction'}
+                Run Full Extraction
               </button>
             )}
           </div>
         )}
 
-        {/* Step 4: Extraction results */}
+        {/* Step 4: Live extraction progress */}
+        {phase === 'extracting' && streamProgress && (
+          <StreamProgressPanel progress={streamProgress} />
+        )}
+
+        {/* Step 5: Extraction results */}
         {extraction && <ExtractionPanel result={extraction} />}
       </main>
     </div>

@@ -23,7 +23,7 @@ Usage (English):
 
 import io
 import logging
-from typing import List, Optional
+from typing import Generator, Iterator, List, Optional
 
 from lamisema.models import EncodingType, Entity, ExtractionResult, PageResult
 from lamisema.nlp.base import NLPBackend
@@ -147,7 +147,68 @@ class LamiSema:
             warnings=warnings,
         )
 
+    def extract_iter(self, pdf_bytes: bytes, filename: str, doc_id: str = "DOC") -> Generator[dict, None, None]:
+        """
+        Generator version of extract() — yields SSE-ready event dicts as each page completes.
+
+        Event types:
+          {"type": "preflight", "encoding_type": ..., "total_pages": ..., "has_text_layer": ...}
+          {"type": "page",      "data": <PageResult.model_dump()>}
+          {"type": "done",      "result": <ExtractionResult.model_dump()>}
+          {"type": "error",     "detail": "..."}
+        """
+        flight = self.preflight.analyze(pdf_bytes, filename, doc_id)
+        warnings: List[str] = []
+
+        yield {
+            "type": "preflight",
+            "encoding_type": flight.encoding_type.value,
+            "total_pages": flight.page_count,
+            "has_text_layer": flight.has_text_layer,
+        }
+
+        if flight.encoding_type == EncodingType.LEGACY_ENCODED:
+            warnings.append(
+                "Legacy font detected. "
+                "Text layer was bypassed. Results from OCR — accuracy depends on scan quality."
+            )
+
+        if flight.encoding_type == EncodingType.UNICODE_NATIVE:
+            page_iter: Iterator[PageResult] = self._iter_text_layer(pdf_bytes, doc_id)
+        elif self.ocr_backend is not None:
+            page_iter = self._iter_ocr(pdf_bytes, doc_id, flight.page_count)
+        else:
+            warnings.append(
+                "No OCR engine available. Install Tesseract or EasyOCR. Returning empty extraction."
+            )
+            page_iter = iter(self._empty_pages(flight.page_count, doc_id))
+
+        pages: List[PageResult] = []
+        for page in page_iter:
+            pages.append(page)
+            yield {"type": "page", "data": page.model_dump()}
+
+        overall = sum(p.confidence for p in pages) / len(pages) if pages else 0.0
+        result = ExtractionResult(
+            doc_id=doc_id,
+            filename=filename,
+            language=self.nlp_backend.language_code,
+            encoding_type=flight.encoding_type,
+            total_pages=flight.page_count,
+            pages=pages,
+            overall_confidence=round(overall, 4),
+            ocr_backend=self.ocr_backend.name if self.ocr_backend else "none",
+            warnings=warnings,
+        )
+        yield {"type": "done", "result": result.model_dump()}
+
     def _extract_text_layer(self, pdf_bytes: bytes, doc_id: str) -> List[PageResult]:
+        return list(self._iter_text_layer(pdf_bytes, doc_id))
+
+    def _extract_via_ocr(self, pdf_bytes: bytes, doc_id: str, page_count: int) -> List[PageResult]:
+        return list(self._iter_ocr(pdf_bytes, doc_id, page_count))
+
+    def _iter_text_layer(self, pdf_bytes: bytes, doc_id: str) -> Iterator[PageResult]:
         """Direct text layer extraction via pdfplumber — only for UNICODE_NATIVE."""
         try:
             import pdfplumber
@@ -157,25 +218,23 @@ class LamiSema:
                 "Run: pip install pdfplumber"
             ) from exc
 
-        results = []
         with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
             for i, page in enumerate(pdf.pages):
                 raw_text = page.extract_text() or ""
                 entities: List[Entity] = self.nlp_backend.extract_entities(raw_text)
-                script_ratio = self.nlp_backend.script_ratio(raw_text)
                 confidence = self.nlp_backend.compute_confidence(raw_text, "text_layer")
-                results.append(PageResult(
+                result = PageResult(
                     page_number=i + 1,
                     raw_text=raw_text,
-                    script_ratio=script_ratio,
+                    script_ratio=self.nlp_backend.script_ratio(raw_text),
                     entities=entities,
                     extraction_method="text_layer",
                     confidence=confidence,
-                ))
+                )
                 logger.info(f"[{doc_id}] Page {i+1}: text_layer, {len(raw_text)} chars, conf={confidence}")
-        return results
+                yield result
 
-    def _extract_via_ocr(self, pdf_bytes: bytes, doc_id: str, page_count: int) -> List[PageResult]:
+    def _iter_ocr(self, pdf_bytes: bytes, doc_id: str, page_count: int) -> Iterator[PageResult]:
         """
         Render each page at 300 DPI via PyMuPDF, then pass PNG bytes to the OCR backend.
 
@@ -186,33 +245,29 @@ class LamiSema:
             import fitz
         except ImportError:
             logger.warning(f"[{doc_id}] PyMuPDF unavailable — cannot render pages for OCR")
-            return self._empty_pages(page_count, doc_id)
+            yield from self._empty_pages(page_count, doc_id)
+            return
 
-        results = []
         doc = fitz.open(stream=pdf_bytes, filetype="pdf")
         dpi_matrix = fitz.Matrix(300 / 72, 300 / 72)
 
         for i in range(len(doc)):
             pix = doc[i].get_pixmap(matrix=dpi_matrix, colorspace=fitz.csRGB)
-            image_bytes = pix.tobytes("png")
-
-            raw_text = self.ocr_backend.extract_text(image_bytes)
+            raw_text = self.ocr_backend.extract_text(pix.tobytes("png"))
             entities: List[Entity] = self.nlp_backend.extract_entities(raw_text)
-            script_ratio = self.nlp_backend.script_ratio(raw_text)
             confidence = self.nlp_backend.compute_confidence(raw_text, self.ocr_backend.name)
-
-            results.append(PageResult(
+            result = PageResult(
                 page_number=i + 1,
                 raw_text=raw_text,
-                script_ratio=script_ratio,
+                script_ratio=self.nlp_backend.script_ratio(raw_text),
                 entities=entities,
                 extraction_method=self.ocr_backend.name,
                 confidence=confidence,
-            ))
+            )
             logger.info(f"[{doc_id}] Page {i+1}: {self.ocr_backend.name}, {len(raw_text)} chars, conf={confidence}")
+            yield result
 
         doc.close()
-        return results
 
     def _empty_pages(self, page_count: int, doc_id: str) -> List[PageResult]:
         logger.warning(f"[{doc_id}] Returning empty extraction — no OCR engine available")
