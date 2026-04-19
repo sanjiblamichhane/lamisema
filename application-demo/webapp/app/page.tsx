@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useCallback, useRef, DragEvent, ChangeEvent } from 'react';
+import api from '@/lib/api';
+import { AxiosError } from 'axios';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -83,13 +85,11 @@ const ENTITY_COLORS: Record<string, string> = {
   EMAIL: 'bg-orange-100 text-orange-800',
 };
 
-async function extractError(res: Response): Promise<string> {
-  try {
-    const data = await res.json();
-    return data.detail ?? res.statusText;
-  } catch {
-    return (await res.text().catch(() => '')) || res.statusText;
+function axiosError(e: unknown): string {
+  if (e instanceof AxiosError) {
+    return e.response?.data?.detail ?? e.response?.data ?? e.message;
   }
+  return String(e);
 }
 
 function formatBytes(n: number) {
@@ -340,12 +340,11 @@ export default function Home() {
     try {
       const form = new FormData();
       form.append('file', file);
-      const res = await fetch('/api/upload', { method: 'POST', body: form });
-      if (!res.ok) throw new Error(await extractError(res));
-      setUpload(await res.json());
+      const { data } = await api.post<UploadResult>('/upload', form);
+      setUpload(data);
       setPhase('uploaded');
     } catch (e) {
-      setError(String(e));
+      setError(axiosError(e));
       setPhase('idle');
     }
   };
@@ -355,12 +354,11 @@ export default function Home() {
     setPhase('preflighting');
     setError(null);
     try {
-      const res = await fetch(`/api/preflight/${upload.doc_id}`);
-      if (!res.ok) throw new Error(await extractError(res));
-      setPreflight(await res.json());
+      const { data } = await api.get<PreflightResult>(`/preflight/${upload.doc_id}`);
+      setPreflight(data);
       setPhase('preflighted');
     } catch (e) {
-      setError(String(e));
+      setError(axiosError(e));
       setPhase('uploaded');
     }
   };
@@ -397,12 +395,11 @@ export default function Home() {
       // Stream endpoint unavailable — fall back to the blocking POST extract
       setStreamProgress(null);
       try {
-        const res = await fetch(`/api/extract/${upload!.doc_id}`, { method: 'POST' });
-        if (!res.ok) throw new Error(await extractError(res));
-        setExtraction(await res.json());
+        const { data } = await api.post<ExtractionResult>(`/extract/${upload!.doc_id}`);
+        setExtraction(data);
         setPhase('done');
       } catch (e) {
-        setError(String(e));
+        setError(axiosError(e));
         setPhase('preflighted');
       }
     };
