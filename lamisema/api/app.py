@@ -16,7 +16,8 @@ import os
 import uuid
 
 import uvicorn
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile
+from fastapi.responses import JSONResponse
 
 from lamisema.models import (
     DateNormalizationRequest,
@@ -69,6 +70,12 @@ app = FastAPI(
     ),
     version="1.0.0",
 )
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    logger.exception(f"Unhandled error on {request.method} {request.url.path}: {exc}")
+    return JSONResponse(status_code=500, content={"detail": str(exc) or "Internal server error"})
 
 
 @app.get("/", tags=["System"])

@@ -77,6 +77,15 @@ const ENTITY_COLORS: Record<string, string> = {
   EMAIL: 'bg-orange-100 text-orange-800',
 };
 
+async function extractError(res: Response): Promise<string> {
+  try {
+    const data = await res.json();
+    return data.detail ?? res.statusText;
+  } catch {
+    return (await res.text().catch(() => '')) || res.statusText;
+  }
+}
+
 function formatBytes(n: number) {
   if (n < 1024) return `${n} B`;
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
@@ -264,7 +273,7 @@ export default function Home() {
       const form = new FormData();
       form.append('file', file);
       const res = await fetch('/api/upload', { method: 'POST', body: form });
-      if (!res.ok) throw new Error((await res.json()).detail ?? res.statusText);
+      if (!res.ok) throw new Error(await extractError(res));
       setUpload(await res.json());
       setPhase('uploaded');
     } catch (e) {
@@ -279,7 +288,7 @@ export default function Home() {
     setError(null);
     try {
       const res = await fetch(`/api/preflight/${upload.doc_id}`);
-      if (!res.ok) throw new Error((await res.json()).detail ?? res.statusText);
+      if (!res.ok) throw new Error(await extractError(res));
       setPreflight(await res.json());
       setPhase('preflighted');
     } catch (e) {
@@ -294,7 +303,7 @@ export default function Home() {
     setError(null);
     try {
       const res = await fetch(`/api/extract/${upload.doc_id}`, { method: 'POST' });
-      if (!res.ok) throw new Error((await res.json()).detail ?? res.statusText);
+      if (!res.ok) throw new Error(await extractError(res));
       setExtraction(await res.json());
       setPhase('done');
     } catch (e) {
