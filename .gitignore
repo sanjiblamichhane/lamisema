@@ -35,6 +35,11 @@ _local/
 uploads/
 *.pdf
 
+# Next.js
+webapp/node_modules/
+webapp/.next/
+webapp/.env*.local
+
 # Python build artifacts
 dist/
 build/

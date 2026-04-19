@@ -15,6 +15,16 @@ services:
     depends_on:
       - minio
 
+  # Next.js frontend
+  webapp:
+    build: ./webapp
+    ports:
+      - "3000:3000"
+    environment:
+      - API_URL=http://api:9001
+    depends_on:
+      - api
+
   # Minio (S3-compatible Object Storage)
   minio:
     image: minio/minio
