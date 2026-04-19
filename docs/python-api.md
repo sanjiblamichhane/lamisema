@@ -27,10 +27,10 @@ result.pages[0].confidence  # per-page confidence score
 
 The main entry point. `LamiSema` is the canonical alias — `NepaliPDFExtractionPipeline` is identical and also exported for verbose usage. Both are stateless and safe to share across threads and requests.
 
+```python
 from lamisema import LamiSema
 from lamisema.ocr import TesseractBackend, EasyOCRBackend
 from lamisema.storage.s3 import S3Storage
-from lamisema.nlp.nepali import NepaliNLPBackend
 
 # Default: auto-selects OCR, Nepali NLP, and InMemoryStorage.
 lamisema = LamiSema()
@@ -40,6 +40,7 @@ lamisema = LamiSema(
     ocr_backend=TesseractBackend(),
     storage=S3Storage()
 )
+```
 
 
 ### `.extract(pdf_bytes, filename, doc_id="DOC")`
