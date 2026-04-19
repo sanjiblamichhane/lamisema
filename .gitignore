@@ -14,6 +14,9 @@ venv/
 *-venv/
 env/
 
+# Secret files
+!.env.example
+
 # Test / coverage
 .pytest_cache/
 .coverage
@@ -36,9 +39,10 @@ uploads/
 *.pdf
 
 # Next.js
-webapp/node_modules/
-webapp/.next/
-webapp/.env*.local
+application-demo/webapp/node_modules/
+application-demo/webapp/.next/
+application-demo/webapp/.env*.local
+application-demo/.env
 
 # Python build artifacts
 dist/

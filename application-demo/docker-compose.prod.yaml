@@ -1,0 +1,47 @@
+services:
+  api:
+    build: ./api
+    restart: unless-stopped
+    expose:
+      - "9001"
+    env_file: .env
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9001/')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    depends_on:
+      minio:
+        condition: service_healthy
+
+  webapp:
+    build: ./webapp
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    env_file: .env
+    depends_on:
+      api:
+        condition: service_healthy
+
+  minio:
+    image: minio/minio
+    restart: unless-stopped
+    expose:
+      - "9000"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    command: server /data
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  minio_data:
