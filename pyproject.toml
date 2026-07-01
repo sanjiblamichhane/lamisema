@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "lamisema"
-version = "1.1.0"
+version = "1.2.0"
 description = "Structured Information Extraction for Nepali and multilingual PDFs"
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -34,6 +34,7 @@ dependencies = [
     "PyMuPDF>=1.24.0",
     "python-multipart>=0.0.9",
     "pytesseract>=0.3.10",
+    "fpdf2>=2.7.0",
 ]
 
 [project.optional-dependencies]

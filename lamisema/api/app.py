@@ -274,6 +274,44 @@ async def get_result(doc_id: str):
     return result
 
 
+@app.get("/export/{doc_id}/pdf", tags=["Export"])
+async def export_pdf(doc_id: str):
+    """
+    Export the extraction result as an editable Unicode PDF.
+
+    The generated PDF contains proper Devanagari Unicode text regardless of the
+    original encoding — legacy-encoded (Preeti/Kantipur) and scanned documents
+    become fully selectable, searchable, and editable.
+
+    Returns 404 if extraction has not been run yet.
+    Returns 503 if fpdf2 or Devanagari font is unavailable.
+    """
+    result = _store.get_result(doc_id)
+    if result is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No result for {doc_id}. Run POST /extract/{doc_id} first.",
+        )
+
+    def generate_pdf():
+        from lamisema.export import export_pdf as _export
+        return _export(result)
+
+    try:
+        pdf_bytes = await asyncio.get_event_loop().run_in_executor(
+            _thread_pool, generate_pdf
+        )
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+
+    safe_name = result.filename.rsplit(".", 1)[0] + "_extracted.pdf"
+    return StreamingResponse(
+        iter([pdf_bytes]),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{safe_name}"'},
+    )
+
+
 @app.post("/normalize-dates", tags=["Results"], response_model=DateNormalizationResponse)
 async def normalize_dates(request: DateNormalizationRequest):
     """

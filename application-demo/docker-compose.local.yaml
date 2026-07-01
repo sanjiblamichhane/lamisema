@@ -4,10 +4,13 @@ services:
       dockerfile_inline: |
         FROM python:3.12-slim
         RUN apt-get update && apt-get install -y --no-install-recommends \
-            tesseract-ocr tesseract-ocr-nep libgl1 \
+            tesseract-ocr tesseract-ocr-nep libgl1 wget \
             && rm -rf /var/lib/apt/lists/*
-        RUN pip install --no-cache-dir "lamisema[s3]>=1.1.0"
-        ENV PORT=9001
+        RUN pip install --no-cache-dir "lamisema[s3]>=1.2.0"
+        RUN mkdir -p /app/fonts && \
+            wget -q "https://github.com/googlefonts/noto-fonts/raw/main/hinted/ttf/NotoSansDevanagari/NotoSansDevanagari-Regular.ttf" \
+            -O /app/fonts/NotoSansDevanagari.ttf
+        ENV PORT=9001 LAMI_FONT_PATH=/app/fonts/NotoSansDevanagari.ttf
         EXPOSE 9001
         CMD ["lamisema", "serve"]
     ports:
